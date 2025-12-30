@@ -1,0 +1,103 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: ioticos-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USERNAME:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-admin123}
+      MONGO_INITDB_DATABASE: ${MONGO_DATABASE:-ioticos_db}
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    networks:
+      - ioticos-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: ioticos-mqtt
+    restart: unless-stopped
+    ports:
+      - "${MQTT_PORT:-1883}:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+    networks:
+      - ioticos-network
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/#", "-C", "1", "-i", "healthcheck", "-W", "3"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: ioticos-backend
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-3001}:3001"
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - API_PORT=3001
+      - MONGO_HOST=mongodb
+      - MONGO_PORT=27017
+      - MONGO_USERNAME=${MONGO_USERNAME:-admin}
+      - MONGO_PASSWORD=${MONGO_PASSWORD:-admin123}
+      - MONGO_DATABASE=${MONGO_DATABASE:-ioticos_db}
+      - MQTT_HOST=mqtt://mosquitto
+      - MQTT_PORT=1883
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRATION=${JWT_EXPIRATION:-30d}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+    networks:
+      - ioticos-network
+
+  frontend:
+    image: node:20-alpine
+    container_name: ioticos-frontend
+    restart: unless-stopped
+    working_dir: /app
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - AXIOS_BASE_URL=http://backend:3001
+      - MQTT_HOST=${MQTT_HOST:-ws://localhost:9001}
+      - MQTT_PORT=${MQTT_PORT:-9001}
+      - MQTT_PREFIX=${MQTT_PREFIX:-/ioticos}
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.nuxt
+    command: sh -c "npm install && npm run dev"
+    depends_on:
+      - backend
+    networks:
+      - ioticos-network
+
+volumes:
+  mongodb_data:
+    driver: local
+  mongodb_config:
+    driver: local
+
+networks:
+  ioticos-network:
+    driver: bridge
