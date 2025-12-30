@@ -59,6 +59,8 @@ typings/
 
 # dotenv environment variables file
 .env
+.env.local
+.env.*.local
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
@@ -80,6 +82,7 @@ dist
 
 # IDE / Editor
 .idea
+.vscode
 
 # Service worker
 sw.*
@@ -89,3 +92,16 @@ sw.*
 
 # Vim swap files
 *.swp
+
+# Docker
+docker-compose.override.yml
+
+# Mosquitto runtime files
+mosquitto/data/*
+mosquitto/log/*
+!mosquitto/data/.gitkeep
+!mosquitto/log/.gitkeep
+
+# Test files
+test-results/
+playwright-report/
