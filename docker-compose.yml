@@ -79,7 +79,7 @@ services:
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - AXIOS_BASE_URL=http://backend:3001
-      - MQTT_HOST=${MQTT_HOST:-ws://localhost:9001}
+      - MQTT_HOST=${MQTT_HOST:-ws://mosquitto:9001}
       - MQTT_PORT=${MQTT_PORT:-9001}
       - MQTT_PREFIX=${MQTT_PREFIX:-/ioticos}
     volumes:

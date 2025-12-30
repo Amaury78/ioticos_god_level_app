@@ -115,8 +115,12 @@ mongoose.connect(uri, options)
     console.log("✔ Mongo Successfully Connected!".green);
     console.log("*******************************".green);
     console.log("\n");
+    
+    // Call MQTT superuser check if function exists
     if (typeof global.check_mqtt_superuser === 'function') {
       global.check_mqtt_superuser();
+    } else {
+      console.log('Note: check_mqtt_superuser function not implemented'.yellow);
     }
   })
   .catch(err => {
