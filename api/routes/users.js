@@ -3,10 +3,15 @@ const router = express.Router();
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const { checkAuth } = require("../middlewares/authentication.js");
+require('dotenv').config();
 
 //models import
 import User from "../models/user.js";
 import EmqxAuthRule from "../models/emqx_auth.js";
+
+// Get JWT configuration from environment
+const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_EXPIRATION = process.env.JWT_EXPIRATION || '30d';
 
 //POST -> req.body
 //GET -> req.query
@@ -20,6 +25,14 @@ router.post("/login", async (req, res) => {
   try {
     const email = req.body.email;
     const password = req.body.password;
+
+    // Input validation
+    if (!email || !password) {
+      return res.status(400).json({
+        status: "error",
+        error: "Email and password are required"
+      });
+    }
 
     var user = await User.findOne({ email: email });
 
@@ -36,8 +49,8 @@ router.post("/login", async (req, res) => {
     if (bcrypt.compareSync(password, user.password)) {
       user.set("password", undefined, { strict: false });
 
-      const token = jwt.sign({ userData: user }, "securePasswordHere", {
-        expiresIn: 60 * 60 * 24 * 30
+      const token = jwt.sign({ userData: user }, JWT_SECRET, {
+        expiresIn: JWT_EXPIRATION
       }); 
 
       const response = {
@@ -56,6 +69,10 @@ router.post("/login", async (req, res) => {
     }
   } catch (error) {
     console.log(error);
+    return res.status(500).json({
+      status: "error",
+      error: "Internal server error"
+    });
   }
 });
 
@@ -65,6 +82,41 @@ router.post("/register", async (req, res) => {
     const name = req.body.name;
     const email = req.body.email;
     const password = req.body.password;
+
+    // Input validation
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        status: "error",
+        error: "Name, email and password are required"
+      });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        status: "error",
+        error: "Invalid email format"
+      });
+    }
+
+    // Validate password length
+    if (password.length < 6) {
+      return res.status(400).json({
+        status: "error",
+        error: "Password must be at least 6 characters long"
+      });
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email: email });
+    if (existingUser) {
+      return res.status(400).json({
+        status: "error",
+        error: "User with this email already exists"
+      });
+    }
+
     const encryptedPassword = bcrypt.hashSync(password, 10);
 
     const newUser = {
@@ -75,22 +127,20 @@ router.post("/register", async (req, res) => {
 
     var user = await User.create(newUser);
 
-
     const response = {
-      status: "success"
+      status: "success",
+      message: "User registered successfully"
     };
 
-    res.status(200).json(response);
+    res.status(201).json(response);
   } catch (error) {
     console.log("ERROR - REGISTER ENDPOINT");
     console.log(error);
 
     const response = {
       status: "error",
-      error: error
+      error: "Failed to register user"
     };
-
-    console.log(response);
 
     return res.status(500).json(response);
   }
